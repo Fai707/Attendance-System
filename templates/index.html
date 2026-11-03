@@ -8,8 +8,8 @@
 
     <style>
         body {
-            background: #f3f5f9;
-            color: #172033;
+            background: #f9f3f3;
+            color: #331717;
         }
 
         .attendance-card {
@@ -19,8 +19,8 @@
         .attendance-icon {
             width: 52px;
             height: 52px;
-            background: #eef2ff;
-            color: #4f46e5;
+            background: #ffeeee;
+            color: #e54646;
         }
 
         .form-control {
@@ -28,8 +28,8 @@
         }
 
         .form-control:focus {
-            border-color: #4f46e5;
-            box-shadow: 0 0 0 .25rem rgb(79 70 229 / 15%);
+            border-color: #e54646;
+            box-shadow: 0 0 0 .25rem rgba(229, 70, 70, 0.15);
         }
 
         .otp-input {
@@ -37,12 +37,12 @@
         }
 
         .btn-primary {
-            --bs-btn-bg: #4f46e5;
-            --bs-btn-border-color: #4f46e5;
-            --bs-btn-hover-bg: #4338ca;
-            --bs-btn-hover-border-color: #4338ca;
-            --bs-btn-active-bg: #3730a3;
-            --bs-btn-active-border-color: #3730a3;
+            --bs-btn-bg: #e54646;
+            --bs-btn-border-color: #e54646;
+            --bs-btn-hover-bg: #ca3838;
+            --bs-btn-hover-border-color: #ca3838;
+            --bs-btn-active-bg: #a33030;
+            --bs-btn-active-border-color: #a33030;
             --bs-btn-focus-shadow-rgb: 79, 70, 229;
         }
     </style>
@@ -51,30 +51,34 @@
 <body class="d-flex justify-content-center align-items-center min-vh-100 p-4">
     <main class="attendance-card card w-100 rounded-4 border-light-subtle shadow-sm">
         <div class="card-body p-4 p-sm-5">
-            <div class="attendance-icon d-flex justify-content-center align-items-center rounded-4 mb-4" aria-hidden="true">
+            <a href="{{ url_for('admin') }}" class="attendance-icon d-flex justify-content-center align-items-center rounded-4 mb-4" aria-hidden="true">
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="4" y="5" width="16" height="16" rx="3"/>
                     <path d="M8 3v4M16 3v4M4 11h16M9 16l2 2 4-4"/>
                 </svg>
-            </div>
+            </a>
 
             <h1 class="h3 fw-bold mb-2">Mark your attendance</h1>
-            <p class="text-secondary small mb-4">Enter your student ID and the verification code shared in class.</p>
+            <p class="text-secondary small mb-4">Enter your student ID and the code shown by your instructor.</p>
 
-            <form action="{{ url_for('attend') }}" method="get">
+            <form action="{{ url_for('attend') }}" method="post">
                 <div class="mb-4">
                     <label for="student-id" class="form-label small fw-semibold">Student ID</label>
                     <input id="student-id" name="student_id" type="text" class="form-control rounded-3" placeholder="Enter your student ID" required>
                 </div>
 
-                <label for="otp" class="form-label small fw-semibold">Verification code</label>
+                <label for="otp" class="form-label small fw-semibold">Class code</label>
                 <div class="d-flex flex-column">
                     <input id="otp" name="otp" type="text" class="form-control otp-input text-center fs-5 rounded-3 rounded-bottom-0" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" placeholder="000000" aria-describedby="otp-hint" required>
-                    <button type="submit" class="btn btn-primary rounded-3 rounded-top-0 py-3 fw-semibold">Submit attendance →</button>
+                    <button type="submit" class="btn btn-primary rounded-3 rounded-top-0 py-3 fw-semibold">Submit attendance</button>
                 </div>
 
-                <p id="otp-hint" class="form-text mt-2 mb-0">Enter the 6-digit code provided by your instructor.</p>
+                <p id="otp-hint" class="form-text mt-2 mb-0">Use the current 6-digit code before it expires.</p>
             </form>
+
+            {% if message %}
+                <div class="alert alert-{{ category }} mt-4 mb-0" role="alert">{{ message }}</div>
+            {% endif %}
         </div>
     </main>
 </body>

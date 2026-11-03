@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            background: #f9f3f3;
+            color: #331717;
+        }
+
+        .dashboard {
+            max-width: 1100px;
+        }
+
+        .class-card {
+            max-width: 620px;
+        }
+
+        .code-panel {
+            background: #ffeeee;
+            color: #e54646;
+        }
+
+        .attendance-code {
+            font-size: clamp(2rem, 8vw, 4rem);
+            letter-spacing: .15em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .form-control {
+            min-height: 52px;
+        }
+
+        .form-control:focus {
+            border-color: #e54646;
+            box-shadow: 0 0 0 .25rem rgba(229, 70, 70, 0.15);
+        }
+
+        .btn-primary {
+            --bs-btn-bg: #e54646;
+            --bs-btn-border-color: #e54646;
+            --bs-btn-hover-bg: #ca3838;
+            --bs-btn-hover-border-color: #ca3838;
+            --bs-btn-active-bg: #a33030;
+            --bs-btn-active-border-color: #a33030;
+            --bs-btn-focus-shadow-rgb: 229, 70, 70;
+        }
+
+        .browser-id {
+            display: inline-block;
+            max-width: 150px;
+            overflow-wrap: anywhere;
+            font-size: .75rem;
+        }
+    </style>
+</head>
+
+<body class="p-3 p-sm-4">
+    <main class="dashboard w-100 mx-auto py-3">
+        <header class="d-flex justify-content-between align-items-center gap-3 mb-4">
+            <div>
+                <span class="text-secondary small">Instructor dashboard</span>
+                <h1 class="h4 fw-bold mb-0">Attendance System</h1>
+            </div>
+
+            <form action="{{ url_for('admin_logout') }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-outline-secondary btn-sm rounded-3 text-nowrap">Sign out</button>
+            </form>
+        </header>
+
+        <section class="class-card card border-0 rounded-4 shadow-sm mx-auto">
+            {% if active_class %}
+                <div class="card-body p-4 p-sm-5 text-center">
+                    <span class="badge bg-success-subtle text-success-emphasis rounded-pill mb-3">Attendance open</span>
+
+                    <h2 class="h4 fw-bold text-break">{{ active_class.name }}</h2>
+                    <p class="text-secondary small mb-4">Ask students to enter this code with their student ID.</p>
+
+                    <div class="code-panel rounded-4 p-4 mb-3">
+                        <div class="attendance-code fw-bold font-monospace">{{ code }}</div>
+                    </div>
+
+                    <p class="text-secondary small mb-4">
+                        New code in <span id="countdown" class="fw-semibold">{{ remaining }}</span> seconds
+                    </p>
+
+                    <form action="{{ url_for('close_class') }}" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-outline-danger rounded-3 px-4 py-2">Close attendance</button>
+                    </form>
+                </div>
+            {% else %}
+                <div class="card-body p-4 p-sm-5">
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis rounded-pill mb-3">No active class</span>
+
+                    <h2 class="h4 fw-bold">Start attendance</h2>
+                    <p class="text-secondary small mb-4">Enter the subject and section for this class.</p>
+
+                    <form action="{{ url_for('start_class') }}" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                        <label for="subject" class="form-label small fw-semibold">Subject / section</label>
+                        <input id="subject" name="class_name" type="text" class="form-control rounded-3 mb-3" placeholder="e.g. Computer Security — Section 1" maxlength="100" required>
+
+                        <button type="submit" class="btn btn-primary w-100 rounded-3 py-3 fw-semibold">Start attendance</button>
+                    </form>
+                </div>
+            {% endif %}
+        </section>
+
+        <p class="text-center text-secondary small mt-3 mb-4">
+            {% if active_class %}
+                Close attendance when the class is done.
+            {% else %}
+                Starting a new class clears this table. Saved CSV records remain.
+            {% endif %}
+        </p>
+
+        <section class="card border-0 rounded-4 shadow-sm">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+                    <div>
+                        <h2 class="h5 fw-bold mb-1">Attendance records</h2>
+
+                        {% if active_class %}
+                            <p class="text-secondary small mb-0">{{ active_class.name }}</p>
+                        {% elif records %}
+                            <p class="text-secondary small mb-0">{{ records[0].subject }} — Closed</p>
+                        {% endif %}
+                    </div>
+
+                    <a href="{{ url_for('admin') }}" class="btn btn-outline-secondary btn-sm">Refresh</a>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <span class="badge text-bg-light border">Submitted: {{ records | length }}</span>
+                    <span class="badge bg-danger-subtle text-danger-emphasis">Flagged records: {{ flagged_count }}</span>
+                </div>
+
+                <p class="text-secondary small">
+                    Red rows share a browser ID with another student in this class session.
+                    Review these records before taking action; a shared browser is not proof of cheating.
+                </p>
+
+                {% if records %}
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Subject</th>
+                                    <th scope="col">Student ID</th>
+                                    <th scope="col">Name</th>
+                                    <th scope="col">Time (UTC)</th>
+                                    <th scope="col">Browser ID</th>
+                                    <th scope="col">Status</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {% for record in records %}
+                                    <tr class="{{ 'table-danger' if record.suspicious else '' }}">
+                                        <td>{{ record.subject }}</td>
+                                        <td class="text-nowrap">{{ record.student_id }}</td>
+                                        <td>{{ record.name }}</td>
+                                        <td class="small text-nowrap">{{ record.time_utc }}</td>
+                                        <td><span class="browser-id font-monospace">{{ record.browser_id }}</span></td>
+                                        <td>
+                                            {% if record.suspicious %}
+                                                <span class="badge text-bg-danger">Shared browser</span>
+                                            {% else %}
+                                                <span class="text-secondary small">Not flagged</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-secondary text-center py-4 mb-0">No attendance records yet.</p>
+                {% endif %}
+            </div>
+        </section>
+    </main>
+
+    {% if active_class %}
+        <script>
+            const countdown = document.getElementById("countdown");
+            const expiresAt = Date.now() + {{ remaining | tojson }} * 1000;
+
+            function updateCountdown() {
+                const seconds = Math.max(
+                    0,
+                    Math.ceil((expiresAt - Date.now()) / 1000)
+                );
+
+                countdown.textContent = seconds;
+
+                if (seconds === 0) {
+                    clearInterval(timer);
+                    window.location.reload();
+                }
+            }
+
+            const timer = setInterval(updateCountdown, 250);
+        </script>
+    {% endif %}
+</body>
+</html>
