@@ -17,7 +17,7 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
 )
 
-admin_password = "2626"
+admin_password = "1005"
 totp = pyotp.TOTP(pyotp.random_base32(), interval=10)
 
 active_class = None
@@ -26,8 +26,12 @@ current_attendance = []
 attendance_lock = Lock()
 
 folder = Path(__file__).resolve().parent
-students_file = folder / "students.csv"
-attendance_file = folder / "attendance.csv"
+students_file = folder / "students2.csv"
+
+attendance_folder = folder / "attendance"
+attendance_folder.mkdir(exist_ok=True)
+
+attendance_file = None
 
 columns = [
     "subject",
@@ -44,15 +48,15 @@ with students_file.open(newline="", encoding="utf-8-sig") as file:
         student_id = row["student_id"].strip()
         students[student_id] = row["name"].strip()
 
-if attendance_file.exists() and attendance_file.stat().st_size > 0:
-    with attendance_file.open(newline="", encoding="utf-8-sig") as file:
-        header = next(csv.reader(file), None)
+# if attendance_file.exists() and attendance_file.stat().st_size > 0:
+#     with attendance_file.open(newline="", encoding="utf-8-sig") as file:
+#         header = next(csv.reader(file), None)
 
-        if header != columns:
-            raise RuntimeError(
-                "The attendance CSV has different columns. "
-                "Rename it to attendance_old.csv before starting."
-            )
+#         if header != columns:
+#             raise RuntimeError(
+#                 "The attendance CSV has different columns. "
+#                 "Rename it to attendance_old.csv before starting."
+#             )
 
 
 def get_browser_id():
@@ -267,10 +271,9 @@ def admin():
 @app.route("/admin/class", methods=["POST"])
 @admin_required
 def start_class():
-    global active_class, totp
+    global active_class, totp, attendance_file
 
     check_csrf()
-
     subject = request.form.get("class_name", "").strip()
 
     if not 1 <= len(subject) <= 100:
@@ -278,15 +281,27 @@ def start_class():
 
     with attendance_lock:
         if active_class is not None:
-            abort(
-                409,
-                "Close the current class before starting another.",
-            )
+            abort(409,"Close the current class before starting another.",)
+
+        name = ""
+        for c in subject:
+            if c in '<>:"/\\|?*':
+                name += "_"
+            else:
+                name += c
+        name = name[:60].strip(" .") or "class"
+        date = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H")
+
+        attendance_file = attendance_folder / (
+            f"{date}_{name}_{secrets.token_hex(4)}.csv"
+        )
+
+        with attendance_file.open("x", newline="", encoding="utf-8") as file:
+            csv.writer(file).writerow(columns)
 
         active_class = {"name": subject}
         submitted_students.clear()
         current_attendance.clear()
-
         totp = pyotp.TOTP(pyotp.random_base32(), interval=15)
 
     return redirect(url_for("admin"))
@@ -311,6 +326,86 @@ def admin_logout():
     clear_login()
 
     return redirect(url_for("admin_login"))
+
+@app.route("/admin/attendance/remove", methods=["POST"])
+@admin_required
+def remove_attendance():
+    check_csrf()
+    student_id = request.form.get("student_id", "").strip()
+
+    with attendance_lock:
+        if not any(
+            record["student_id"] == student_id
+            for record in current_attendance
+        ):
+            abort(404, "Attendance record not found.")
+
+        remaining_records = [
+            record for record in current_attendance
+            if record["student_id"] != student_id
+        ]
+        temporary_file = attendance_file.with_suffix(".tmp")
+
+        with temporary_file.open(
+            "w", newline="", encoding="utf-8"
+        ) as file:
+            writer = csv.DictWriter(file, fieldnames=columns)
+            writer.writeheader()
+
+            for record in remaining_records:
+                writer.writerow({
+                    column: csv_safe(record[column])
+                    for column in columns
+                })
+
+        temporary_file.replace(attendance_file)
+
+        current_attendance[:] = remaining_records
+        submitted_students.discard(student_id)
+
+    return redirect(url_for("admin"))
+
+@app.route("/admin/download")
+@admin_required
+def download_attendance():
+    with attendance_lock:
+        if attendance_file is None or not attendance_file.exists():
+            abort(404, "No attendance file available.")
+
+        return send_file(
+            attendance_file,
+            mimetype="text/csv",
+            as_attachment=True,
+            download_name=attendance_file.name,
+        )
+
+
+@app.route("/admin/files")
+@admin_required
+def attendance_files():
+    files = sorted(
+        [
+            file.name
+            for file in attendance_folder.glob("*.csv")
+            if file.is_file()
+        ],
+        reverse=True,
+    )
+
+    return render_template("attendance_files.html", files=files)
+
+
+@app.route("/admin/files/<filename>")
+@admin_required
+def download_old_attendance(filename):
+    if not filename.endswith(".csv"):
+        abort(404)
+
+    return send_from_directory(
+        attendance_folder,
+        filename,
+        as_attachment=True,
+    )
 
 
 app.run(port=5002)
