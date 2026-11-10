@@ -250,6 +250,14 @@ It provides hands-on experience with:
 - Building administrator dashboards.
 - Managing application state.
 
+## Screenshots
+
+### Student Attendance
+![Student Page](imgs/student.png)
+
+### Administrator Dashboard
+![Admin Dashboard](imgs/admin.png)
+
 ## Author
 
 **Fai707**
